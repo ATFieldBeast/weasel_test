@@ -172,8 +172,14 @@ int ServerImpl::Run() {
   // auto listener = boost::bind(&PipeServer::Listen, channel.get(), handler);
   //
   auto listener = [this](PipeMessage msg, PipeServer::Respond resp) -> void {
-    std::lock_guard guard(g_api_mutex);
-    HandlePipeMessage(msg, resp);
+    // Only lock for non-key-event messages to allow concurrent key processing
+    // This improves performance in high-frequency key scenarios (like gaming)
+    if (msg.Msg != WEASEL_IPC_PROCESS_KEY_EVENT) {
+      std::lock_guard guard(g_api_mutex);
+      HandlePipeMessage(msg, resp);
+    } else {
+      HandlePipeMessage(msg, resp);
+    }
   };
   pipeThread = std::make_unique<boost::thread>(
       [this, &listener]() { channel->Listen(listener); });
